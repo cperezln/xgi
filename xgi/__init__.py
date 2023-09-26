@@ -24,4 +24,4 @@ from .readwrite import *
 from .stats import *
 
 
-__version__ = pkg_resources.require("xgi")[0].version
+__version__ = "stable"#pkg_resources.require("xgi")[0].version CHANGETIAN delete # 
