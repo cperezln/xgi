@@ -12,7 +12,6 @@ from ..exception import XGIError
 from ..linalg import clique_motif_matrix, incidence_matrix
 from ..utils import convert_labels_to_integers
 from .properties import is_uniform
-
 __all__ = [
     "clique_eigenvector_centrality",
     "h_eigenvector_centrality",
@@ -100,7 +99,6 @@ def h_eigenvector_centrality(H, max_iter=100, tol=1e-6):
     https://doi.org/10.1137/18M1203031
     """
     from ..algorithms import is_connected
-
     # if there aren't any nodes, return an empty dict
     if H.num_nodes == 0:
         return dict()
@@ -159,6 +157,118 @@ def apply(H, x, g=lambda v, e: np.sum(v[list(e)])):
             new_x[edge[shift]] += g(x, edge[shift + 1 :] + edge[:shift])
     return new_x
 
+# ------------------------------------------------------------------------------------
+def h_eigenvector_centrality_nu(H, max_iter=100, tol=1e-6):
+    """Compute the H-eigenvector centrality of a uniform hypergraph.
+
+    Parameters
+    ----------
+    H : Hypergraph
+        The hypergraph of interest.
+    max_iter : int, optional
+        The maximum number of iterations before the algorithm terminates.
+        By default, 100.
+    tol : float > 0, optional
+        The desired L2 error in the centrality vector. By default, 1e-6.
+
+    Returns
+    -------
+    dict
+        Centrality, where keys are node IDs and values are centralities. The
+        centralities are 1-normalized.
+
+    Raises
+    ------
+    XGIError
+        If the hypergraph is not uniform.
+
+    See Also
+    --------
+    clique_eigenvector_centrality
+
+    References
+    ----------
+    Three Hypergraph Eigenvector Centralities,
+    Austin R. Benson,
+    https://doi.org/10.1137/18M1203031
+    """
+    from ..algorithms import is_connected
+    
+    new_H = H
+    m = max(len(i) for i in H.ds)
+    f = lambda v, m: np.power(v, 1.0 / m)  # noqa: E731
+    g = lambda v, x: np.prod(v[list(x)])  # noqa: E731
+
+    x = np.random.uniform(size=(new_H.num_nodes))
+    x = x / norm(x, 1)
+
+    for iter in range(max_iter):
+        new_x = apply_nu(new_H, x, g)
+        new_x = f(new_x, m)
+        # multiply by the sign to try and enforce positivity
+        new_x = np.sign(new_x[0]) * new_x / norm(new_x, 1)
+        if norm(x - new_x) <= tol:
+            break
+        x = new_x.copy()
+    else:
+        warn("Iteration did not converge!")
+    return {n: c for n, c in zip(new_H.nodes, new_x)}
+
+
+def apply_nu(H, x, g=lambda v, e: np.sum(v[list(e)])):
+    """Apply a vector to the hypergraph given a function.
+
+    Parameters
+    ----------
+    H : Hypergraph
+        Hypergraph of interest.
+    x : 1D numpy array
+        1D vector
+    g : lambda function, optional
+        function to apply. By default, sum.
+
+    Returns
+    -------
+    1D numpy array
+        vector post application
+    """
+    new_x = np.zeros(H.num_nodes)
+    warn(str(new_x))
+    for edge, w in H.ds.items():
+        edge = list(edge)
+        # ordered permutations
+        for shift in range(len(edge)):  
+            new_x[edge[shift]] += w*g(x, edge[shift + 1 :] + edge[:shift])
+    return new_x
+
+def apply_nu_t(T, x, g=lambda v, e: np.sum(v[list(e)])):
+    """Apply a vector to the hypergraph given a function.
+
+    Parameters
+    ----------
+    H : Hypergraph
+        Hypergraph of interest.
+    x : 1D numpy array
+        1D vector
+    g : lambda function, optional
+        function to apply. By default, sum.
+
+    Returns
+    -------
+    1D numpy array
+        vector post application
+    """
+    new_x = np.zeros(T[1][0])
+    warn(str(new_x))
+    for edge, w in T[0].items():
+        edge = list(edge)
+        # ordered permutations
+        for shift in range(len(edge)):  
+            new_x[edge[shift]] += w*g(x, edge[shift + 1 :] + edge[:shift])
+    return new_x
+
+
+# ....................................................................................
 
 def node_edge_centrality(
     H,
